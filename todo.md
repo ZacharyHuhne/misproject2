@@ -1,0 +1,4 @@
+- [x] Examine current career.html structure
+- [x] Add RSM panel contact information (phone and website)
+- [x] Add EY panel contact information (phone and website)
+- [x] Verify the changes are correctly implemented

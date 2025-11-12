@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack Game</title>
+    <!-- Imports Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the playing cards */
+        .card {
+            width: 100px;
+            height: 150px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 8px;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: inline-flex; /* Use flex to align content */
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 1.5rem; /* Base font size for value */
+            font-weight: bold;
+            /* Added transition for split animation */
+            transition: all 0.3s ease-in-out; 
+        }
+        
+        /* Card back style */
+        .card.back {
+            background-color: #2563eb; /* A nice blue */
+            background-image: linear-gradient(135deg, rgba(255,255,255,0.1) 25%, transparent 25%,
+                              transparent 50%, rgba(255,255,255,0.1) 50%,
+                              rgba(255,255,255,0.1) 75%, transparent 75%, transparent);
+            background-size: 20px 20px;
+            border: 4px solid white;
+        }
+
+        /* Red cards (Hearts and Diamonds) */
+        .card.red {
+            color: #dc2626; /* red-600 */
+        }
+        
+        /* Black cards (Clubs and Spades) */
+        .card.black {
+            color: #1f2937; /* gray-800 */
+        }
+
+        /* Position the top-left value */
+        .card-value-top {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            line-height: 1;
+        }
+
+        /* Position the big suit in the center */
+        .card-suit-center {
+            font-size: 3.5rem; /* Larger suit icon */
+            text-align: center;
+            opacity: 0.9;
+            line-height: 1;
+            /* Center vertically and horizontally */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Position the bottom-right value (rotated) */
+        .card-value-bottom {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            line-height: 1;
+            transform: rotate(180deg);
+        }
+
+        /* Animation for dealing cards */
+        @keyframes dealIn {
+          0% { opacity: 0; transform: scale(0.8) translateY(-10px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        
+        .card-dealt {
+          animation: dealIn 0.3s ease-out;
+        }
+
+        /* Animation for Win/Loss popup */
+        @keyframes popAndFade {
+          0% { opacity: 0; transform: scale(0.5); }
+          20% { opacity: 1; transform: scale(1.1); }
+          80% { opacity: 1; transform: scale(1.0); }
+          100% { opacity: 0; transform: scale(1.0); }
+        }
+        
+        .run-animation {
+          animation: popAndFade 2s ease-in-out;
+        }
+
+        /* --- PEEK ANIMATION --- */
+        @keyframes peek {
+            0% { transform: translateY(0) rotate(0); }
+            50% { 
+                transform: translateY(-15px) rotate(-5deg) translateX(5px); 
+                box-shadow: 0 10px 15px rgba(0,0,0,0.3); 
+                z-index: 10;
+            }
+            100% { transform: translateY(0) rotate(0); }
+        }
+        .card-peek {
+            animation: peek 1s ease-in-out;
+        }
+        
+        /* --- SPLIT STYLES --- */
+        /* Container for a single hand (used when splitting) */
+        .hand-container {
+            position: relative;
+            padding: 10px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            /* Base container for cards */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap; /* Prevent wrapping by default */
+            min-height: 150px;
+        }
+        /* Highlight for the active split hand */
+        .hand-container.active-hand {
+            border-color: #f59e0b; /* yellow-500 */
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+
+        /* NEW: Overlapping cards for split hands */
+        .hand-container.split-hand .card {
+            margin-left: -65px; /* Overlap cards by 65px */
+            flex-shrink: 0; /* Prevent cards from shrinking */
+        }
+        /* Don't overlap the first card */
+        .hand-container.split-hand .card:first-child {
+            margin-left: 0;
+        }
+        /* --- END SPLIT STYLES --- */
+
+
+        /* --- FALLING CHIP ANIMATION --- */
+        @keyframes fall {
+            0% {
+                transform: translateY(-100px) rotate(0deg); /* Start above screen */
+            }
+            100% {
+                transform: translateY(110vh) rotate(720deg); /* End below screen */
+            }
+        }
+
+        .falling-chip {
+            position: absolute;
+            top: 0; /* Attached to top */
+            width: 60px; /* Same size */
+            height: 60px; /* Same size */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 1rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 2px 4px rgba(0,0,0,0.3);
+            border: 5px solid white;
+            opacity: 1; /* Opaque */
+            z-index: 0; /* Behind game panel */
+            animation-name: fall;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards; /* Stay at 100% state when done */
+            transform: translateY(-100px); /* Start position */
+        }
+
+        .falling-chip::before {
+            content: '';
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            border: 3px dashed rgba(255, 255, 255, 0.7);
+        }
+
+    </style>
+</head>
+<!-- UPDATED: Removed background-image style and added bg-green-900 class -->
+<body class="text-slate-100 flex items-center justify-center min-h-screen p-4 font-sans relative overflow-hidden bg-green-900">
+
+    <!-- NEW: Background Audio (Corrected Path) -->
+    <audio id="bg-music" src="Audio/casino.mp3" loop></audio>
+    <!-- NEW: Sound Effects (Corrected win sound) -->
+    <audio id="win-sound" src="Audio/win.mp3" volume="4"></audio>
+    <audio id="lose-sound" src="Audio/lose.mp3" volume="4"></audio>
+    <!-- NEW: Card Deal Sound -->
+    <audio id="deal-sound" src="Audio/carddeal.mp3" volume="4"></audio>
+    <!-- NEW: Push Sound -->
+    <audio id="push-sound" src="Audio/push.mp3" volume="4"></audio>
+
+
+    <!-- Background Chip Container -->
+    <div id="chip-background" class="absolute inset-0 z-0"></div>
+
+    <!-- Back to Home Button (Increased z-index) -->
+    <a href="index.html" class="absolute top-4 left-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg transition-all z-20 text-sm">
+        &larr; Back to Home
+    </a>
+
+    <!-- Animation Overlay (Increased z-index) -->
+    <div id="animationOverlay" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div id="animationContent" class="text-6xl font-bold text-white p-8 rounded-lg">
+            <!-- Content will be set by JS -->
+        </div>
+    </div>
+    
+    <!-- Game Over Overlay -->
+    <!-- ADDED 'flex' class here to fix centering -->
+    <div id="gameOverOverlay" class="hidden fixed inset-0 bg-black/70 flex flex-col items-center justify-center z-40">
+        <div class="text-5xl font-bold text-red-500 mb-6">GAME OVER</div>
+        <div class="text-2xl text-white mb-8">You've run out of money!</div>
+        <button id="playAgainButton" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-8 rounded-lg text-2xl transition-all">
+            Play Again
+        </button>
+    </div>
+
+    <!-- Main Game Panel (Increased z-index) -->
+    <!-- Added id="gamePanel" for collision detection -->
+    <div id="gamePanel" class="w-full max-w-4xl mx-auto p-6 bg-green-800 rounded-lg shadow-2xl relative z-10">
+        <h1 class="text-3xl font-bold text-center mb-4 text-white">Blackjack</h1>
+
+        <!-- Message Bar -->
+        <div id="messageEl" class="text-center text-xl font-bold mb-6 h-8 transition-all duration-300">
+            Place your bet!
+        </div>
+
+        <!-- New 2-column Layout Container -->
+        <div class="flex flex-col md:flex-row gap-6">
+
+            <!-- Column 1: Game Area (Dealer, Player, Actions) -->
+            <div class="w-full md:w-3/4 order-2 md:order-1">
+                <!-- Dealer's Area -->
+                <div class="mb-8">
+                    <h2 class="text-2xl font-semibold mb-3 text-white">
+                        Dealer's Hand: <span id="dealerScoreEl" class="font-bold">0</span>
+                    </h2>
+                    <div id="dealerHandEl" class="flex justify-center items-center gap-3 min-h-[170px] bg-green-900/50 p-4 rounded-lg">
+                        <!-- Cards will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- Player's Area -->
+                <div class="mb-8">
+                    <h2 class="text-2xl font-semibold mb-3 text-white">
+                        Your Hand: <span id="playerScoreEl" class="font-bold">0</span>
+                    </h2>
+                    <!-- Player Hand Element: Now a flex container for split hands -->
+                    <div id="playerHandEl" class="flex justify-center items-start gap-3 min-h-[170px] bg-green-900/50 p-4 rounded-lg overflow-x-auto">
+                        <!-- 
+                            When not split, one .hand-container will be here.
+                            When split, two .hand-container elements will be here.
+                        -->
+                    </div>
+                </div>
+
+                <!-- In-Game Bet Display (hidden by default) -->
+                <div id="inGameBetArea" class="hidden text-center my-4">
+                    <span class="text-xl font-bold text-white bg-black/30 px-4 py-2 rounded-lg">
+                        Current Bet: $<span id="inGameBetEl">0</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Column 2: Controls Area (Bank, Bet, Wagers) -->
+            <div class="w-full md:w-1/4 order-1 md:order-2">
+                <div class="bg-green-700 p-4 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-semibold text-white mb-3 text-center">Wager</h3>
+                    
+                    <!-- Bank Info -->
+                    <div class="text-lg mb-2 text-white">Bank: $<span id="bankEl">1000</span></div>
+                    <div class="text-lg mb-4 text-white">Current Bet: $<span id="betEl">0</span></div>
+
+                    <!-- Wager Area (now vertical) -->
+                    <div id="wagerArea" class="flex flex-col gap-3">
+                        <button class="wagerButton w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-md transition-all border-2 border-transparent disabled:opacity-50" data-wager="25">$25</button>
+                        <button class="wagerButton w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-md transition-all border-2 border-transparent disabled:opacity-50" data-wager="50">$50</button>
+                        <button class="wagerButton w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-md transition-all border-2 border-transparent disabled:opacity-50" data-wager="100">$100</button>
+                        <button class="wagerButton w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-md transition-all border-2 border-transparent disabled:opacity-50" data-wager="500">$500</button>
+                        <button id="clearBetButton" class="w-full mt-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded-lg text-md transition-all border-2 border-transparent disabled:opacity-50">Clear Bet</button>
+                    </div>
+
+                    <!-- Button Area (New Location) -->
+                    <div id="buttonArea" class="flex flex-col gap-3 mt-4">
+                        <button id="dealButton" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all disabled:opacity-50" disabled>
+                            Deal
+                        </button>
+                        <button id="hitButton" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all hidden">
+                            Hit
+                        </button>
+                        <button id="standButton" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all hidden">
+                            Stand
+                        </button>
+                        <button id="doubleDownButton" class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg text-lg transition-all hidden">
+                            Double
+                        </button>
+                        <!-- NEW: Split Button -->
+                        <button id="splitButton" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all hidden">
+                            Split
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const messageEl = document.getElementById('messageEl');
+        const dealerScoreEl = document.getElementById('dealerScoreEl');
+        const dealerHandEl = document.getElementById('dealerHandEl');
+        const playerScoreEl = document.getElementById('playerScoreEl');
+        const playerHandEl = document.getElementById('playerHandEl');
+        const dealButton = document.getElementById('dealButton');
+        const hitButton = document.getElementById('hitButton');
+        const standButton = document.getElementById('standButton');
+        const doubleDownButton = document.getElementById('doubleDownButton');
+        const splitButton = document.getElementById('splitButton'); // New
+        const bankEl = document.getElementById('bankEl');
+        const betEl = document.getElementById('betEl');
+        const wagerArea = document.getElementById('wagerArea');
+        const wagerButtons = document.querySelectorAll('.wagerButton');
+        const clearBetButton = document.getElementById('clearBetButton');
+        const animationOverlay = document.getElementById('animationOverlay');
+        const animationContent = document.getElementById('animationContent');
+        const gameOverOverlay = document.getElementById('gameOverOverlay'); // New
+        const playAgainButton = document.getElementById('playAgainButton'); // New
+        const inGameBetArea = document.getElementById('inGameBetArea');
+        const inGameBetEl = document.getElementById('inGameBetEl');
+        const chipBackground = document.getElementById('chip-background');
+        const gamePanel = document.getElementById('gamePanel'); // New
+
+        // --- Game Constants ---
+        const SUITS = ['♥', '♦', '♣', '♠'];
+        const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        // --- Game State ---
+        let deck = [];
+        let playerHands = []; // Now an array of hands
+        let dealerHand = [];
+        let isGameInProgress = false; // Replaces isGameOver for action logic
+        let playerMoney = 1000;
+        let currentBet = 0;
+        let minBet = 25;
+        let currentHandIndex = 0; // For tracking split hands
+        let placedChips = []; // For background chip collision detection
+        let gameSettleTimeout = null; // For layout shift fix
+        let audioStarted = false; // NEW: Audio flag
+
+        // --- Game Functions ---
+
+        /**
+         * NEW: Plays a sound effect by its ID
+         */
+        function playSound(soundId) {
+            // Don't play sfx if user hasn't interacted yet (to avoid errors)
+            if (!audioStarted) return; 
+            
+            const sound = document.getElementById(soundId);
+            if (sound) {
+                sound.currentTime = 0; // Rewind to start
+                sound.play().catch(e => console.warn(`Sound effect ${soundId} failed to play.`));
+            }
+        }
+
+        /**
+         * Shows a 2-second win/loss/push animation
+         */
+        function showGameAnimation(type) {
+            let content = '';
+            let bgColor = '';
+            
+            if (type.startsWith('win') || type === 'blackjack') {
+                content = '🎉 You Win! 🎉';
+                bgColor = 'bg-green-500';
+                playSound('win-sound'); // --- Play Win Sound ---
+            } else if (type.startsWith('lose') || type === 'bust') {
+                content = '😢 You Lose 😢';
+                bgColor = 'bg-red-600';
+                playSound('lose-sound'); // --- Play Lose Sound ---
+            } else { // 'push'
+                content = '🤝 Push 🤝';
+                bgColor = 'bg-gray-600';
+                playSound('push-sound'); // --- Play Push Sound ---
+            }
+            
+            animationContent.innerHTML = content;
+            animationContent.className = `text-6xl font-bold text-white p-8 rounded-lg ${bgColor} run-animation`;
+            animationOverlay.classList.remove('hidden');
+            
+            setTimeout(() => {
+                animationOverlay.classList.add('hidden');
+                animationContent.classList.remove('run-animation');
+            }, 2000);
+        }
+
+        /**
+         * Creates a new deck of 52 cards
+         */
+        function createDeck() {
+            deck = [];
+            for (const suit of SUITS) {
+                for (const value of VALUES) {
+                    deck.push({ suit, value });
+                }
+            }
+        }
+
+        /**
+         * Shuffles the deck
+         */
+        function shuffleDeck() {
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        /**
+         * Calculates the numerical value of a card
+         */
+        function getCardValue(card) {
+            if (['J', 'Q', 'K'].includes(card.value)) {
+                return 10;
+            }
+            if (card.value === 'A') {
+                return 11;
+            }
+            return parseInt(card.value);
+        }
+        
+        /**
+         * Gets the "rank" of a card (for splitting)
+         * 'K', 'Q', 'J' all count as 10
+         */
+        function getCardRank(card) {
+            if (['J', 'Q', 'K'].includes(card.value)) {
+                return 10;
+            }
+            if (card.value === 'A') {
+                return 11;
+            }
+            return parseInt(card.value);
+        }
+
+
+        /**
+         * Calculates the total score of a hand, handling Aces
+         */
+        function calculateScore(hand) {
+            let score = 0;
+            let aceCount = 0;
+
+            for (const card of hand) {
+                score += getCardValue(card);
+                if (card.value === 'A') {
+                    aceCount++;
+                }
+            }
+
+            while (score > 21 && aceCount > 0) {
+                score -= 10;
+                aceCount--;
+            }
+            return score;
+        }
+
+        /**
+         * Renders a card element
+         */
+        function renderCard(card, isHidden = false) {
+            const cardEl = document.createElement('div');
+            
+            if (isHidden) {
+                cardEl.className = 'card back card-dealt';
+            } else {
+                const colorClass = ['♥', '♦'].includes(card.suit) ? 'red' : 'black';
+                cardEl.className = `card ${colorClass} card-dealt`;
+                cardEl.innerHTML = `
+                    <div class="card-value-top">${card.value}</div>
+                    <div class="card-suit-center">${card.suit}</div>
+                    <div class="card-value-bottom">${card.value}</div>
+                `;
+            }
+            return cardEl;
+        }
+
+        /**
+         * Deals a card from the deck
+         */
+        function drawCard() {
+            if (deck.length < 10) {
+                createDeck();
+                shuffleDeck();
+                console.log("Deck reshuffled");
+            }
+            return deck.pop();
+        }
+        
+        /**
+         * Deals a card to a specific hand object and its UI element
+         */
+        function dealToHand(handObj, isHidden = false) {
+            playSound('deal-sound'); // --- Play Card Deal Sound ---
+            const card = drawCard();
+            handObj.hand.push(card);
+            handObj.element.appendChild(renderCard(card, isHidden));
+            updateScores();
+        }
+
+        /**
+         * Updates all displayed scores
+         */
+        function updateScores(showDealerFullScore = false) {
+            // Update score for each player hand
+            playerHands.forEach(handObj => {
+                const score = calculateScore(handObj.hand);
+                handObj.scoreEl.textContent = score;
+            });
+            // Update main score display with active hand's score
+            if (playerHands.length > 0 && currentHandIndex < playerHands.length) {
+                playerScoreEl.textContent = calculateScore(playerHands[currentHandIndex].hand);
+            } else if (playerHands.length > 0) {
+                 playerScoreEl.textContent = calculateScore(playerHands[0].hand);
+            } else {
+                playerScoreEl.textContent = "0";
+            }
+            
+
+            if (showDealerFullScore) {
+                const dealerScore = calculateScore(dealerHand);
+                dealerScoreEl.textContent = dealerScore;
+            } else {
+                const visibleCard = dealerHand.slice(1);
+                const dealerScore = calculateScore(visibleCard);
+                dealerScoreEl.textContent = dealerScore;
+            }
+        }
+        
+        /**
+         * Creates the UI for a new player hand
+         */
+        function createHandContainer() {
+            const handContainer = document.createElement('div');
+            handContainer.className = 'hand-container flex-1'; // flex-1 to share space
+            
+            const handScoreEl = document.createElement('span');
+            handScoreEl.className = 'font-bold text-lg text-white/70 block text-center mb-2';
+            handScoreEl.textContent = '0';
+            
+            const handCardsEl = document.createElement('div');
+            // This is the element that holds the cards
+            // NEW: Add 'flex-nowrap' and 'gap-3'
+            handCardsEl.className = 'flex justify-center items-center flex-nowrap gap-3';
+            
+            // This container holds the score and the cards
+            const innerContainer = document.createElement('div');
+            innerContainer.appendChild(handScoreEl);
+            innerContainer.appendChild(handCardsEl);
+
+            handContainer.appendChild(innerContainer);
+            playerHandEl.appendChild(handContainer);
+            
+            return {
+                hand: [],
+                bet: currentBet,
+                isFinished: false,
+                isBust: false,
+                isBlackjack: false,
+                element: handCardsEl, // Where cards go
+                container: handContainer, // The whole hand element
+                scoreEl: handScoreEl // The score display
+            };
+        }
+        
+        /**
+         * Highlights the currently active player hand
+         */
+        function highlightActiveHand() {
+            playerHands.forEach((handObj, index) => {
+                if (index === currentHandIndex) {
+                    handObj.container.classList.add('active-hand');
+                    playerScoreEl.textContent = calculateScore(handObj.hand);
+                } else {
+                    handObj.container.classList.remove('active-hand');
+                }
+            });
+        }
+        
+        /**
+         * Checks if the player's first two cards can be split
+         */
+        function canSplit() {
+            if (!isGameInProgress) return false;
+            if (playerHands.length !== 1 || playerHands[0].hand.length !== 2) {
+                return false;
+            }
+            if (playerMoney < currentBet) {
+                return false; // Not enough money to place second bet
+            }
+            const hand = playerHands[0].hand;
+            const card1Rank = getCardRank(hand[0]);
+            const card2Rank = getCardRank(hand[1]);
+            return card1Rank === card2Rank;
+        }
+
+        /**
+         * Starts a new game
+         */
+        function startGame() {
+            if (currentBet === 0) {
+                messageEl.textContent = "Please place a bet first!";
+                return;
+            }
+            
+            playerMoney -= currentBet;
+            bankEl.textContent = playerMoney;
+            
+            isGameInProgress = true;
+            playerHands = [];
+            currentHandIndex = 0;
+            dealerHand = [];
+
+            playerHandEl.innerHTML = '';
+            dealerHandEl.innerHTML = '';
+            messageEl.textContent = "Your turn...";
+            inGameBetEl.textContent = currentBet;
+            inGameBetArea.classList.remove('hidden');
+
+            // Create the first player hand object
+            playerHands.push(createHandContainer());
+
+            wagerArea.classList.add('hidden');
+            dealButton.classList.add('hidden');
+            hitButton.classList.remove('hidden');
+            standButton.classList.remove('hidden');
+            hitButton.disabled = false;
+            standButton.disabled = false;
+            clearBetButton.disabled = true;
+
+            // Deal initial hands
+            dealToHand(playerHands[0]);
+            const hiddenCard = drawCard();
+            playSound('deal-sound'); // --- Play Dealer Card Deal Sound ---
+            dealerHand.push(hiddenCard);
+            dealerHandEl.appendChild(renderCard(hiddenCard, true)); // Render hidden
+
+            dealToHand(playerHands[0]);
+            const visibleCard = drawCard();
+            playSound('deal-sound'); // --- Play Dealer Card Deal Sound ---
+            dealerHand.push(visibleCard);
+            dealerHandEl.appendChild(renderCard(visibleCard, false)); // Render visible
+            
+            highlightActiveHand();
+            updateScores();
+            
+            const playerBJ = calculateScore(playerHands[0].hand) === 21;
+            playerHands[0].isBlackjack = playerBJ;
+            
+            const dealerUpCardValue = getCardValue(dealerHand[1]);
+
+            // Update action buttons
+            updateActionButtons();
+
+            if (dealerUpCardValue === 10 || dealerUpCardValue === 11) {
+                messageEl.textContent = "Dealer is checking for Blackjack...";
+                disableAllActions();
+                setTimeout(() => dealerCheckForBlackjack(playerBJ), 1500);
+            } else {
+                if (playerBJ) {
+                    const winnings = Math.floor(currentBet * 1.5);
+                    playerMoney += currentBet + winnings;
+                    messageEl.textContent = `Blackjack! You Win! (+$${currentBet + winnings})`;
+                    showGameAnimation('blackjack');
+                    endGame();
+                } else {
+                    messageEl.textContent = "Your turn...";
+                }
+            }
+        }
+        
+        /**
+         * NEW: Disables all player action buttons
+         */
+        function disableAllActions() {
+            hitButton.disabled = true;
+            standButton.disabled = true;
+            doubleDownButton.disabled = true;
+            splitButton.disabled = true;
+        }
+        
+        /**
+         * NEW: Updates which action buttons are visible/enabled
+         */
+        function updateActionButtons() {
+            if (!isGameInProgress || currentHandIndex >= playerHands.length) {
+                disableAllActions();
+                hitButton.classList.add('hidden');
+                standButton.classList.add('hidden');
+                doubleDownButton.classList.add('hidden');
+                splitButton.classList.add('hidden');
+                return;
+            }
+            
+            const handObj = playerHands[currentHandIndex];
+            const score = calculateScore(handObj.hand);
+            const handSize = handObj.hand.length;
+            
+            // Basic actions
+            hitButton.disabled = false;
+            standButton.disabled = false;
+            hitButton.classList.remove('hidden');
+            standButton.classList.remove('hidden');
+            
+            // Can double down?
+            const canDouble = (handSize === 2) && (playerMoney >= handObj.bet);
+            doubleDownButton.classList.toggle('hidden', !canDouble);
+            doubleDownButton.disabled = !canDouble;
+            
+            // Can split?
+            const canPlayerSplit = canSplit();
+            splitButton.classList.toggle('hidden', !canPlayerSplit);
+            splitButton.disabled = !canPlayerSplit;
+            
+            // If hand is 21 or bust, auto-stand
+            if (score >= 21) {
+                disableAllActions();
+                // Need a small delay so player sees the 21/bust, then move on
+                // Only trigger move if game is still in progress
+                if (isGameInProgress) {
+                    // BUG FIX: Don't set isFinished here. Let moveToNextHand do it.
+                    // This prevents the race condition.
+                    setTimeout(moveToNextHand, 1000);
+                }
+            }
+        }
+
+        /**
+         * Player chooses to "Hit"
+         */
+        function onHit() {
+            if (!isGameInProgress) return;
+            
+            const handObj = playerHands[currentHandIndex];
+            dealToHand(handObj);
+            
+            const score = calculateScore(handObj.hand);
+            if (score > 21) {
+                handObj.isBust = true;
+                // NEW: Conditional bust message
+                if (playerHands.length > 1) {
+                    messageEl.textContent = `Hand ${currentHandIndex + 1} Busts!`;
+                } else {
+                    messageEl.textContent = "Bust!";
+                }
+            }
+            
+            updateActionButtons(); // Re-check buttons (e.g., disable double/split)
+        }
+        
+        /**
+         * NEW: Moves game focus to the next hand, or starts dealer's turn
+         */
+        function moveToNextHand() {
+            // This function can be called by multiple timeouts, check if game is still running
+            if (!isGameInProgress) return; 
+
+            // Check if the *current* hand is already marked. If not, mark it.
+            // This is the core of the bug fix.
+            if (currentHandIndex < playerHands.length && !playerHands[currentHandIndex].isFinished) {
+                 playerHands[currentHandIndex].isFinished = true;
+            } else if (currentHandIndex >= playerHands.length) {
+                // All hands are finished, but dealer turn might have been called
+                // This is a safety exit
+                return; 
+            } else {
+                 // Function was already called for this hand, exit
+                 return;
+            }
+
+            currentHandIndex++;
+            
+            if (currentHandIndex < playerHands.length) {
+                // There's another split hand to play
+                highlightActiveHand();
+                
+                // Check for split Aces rule
+                const newHandObj = playerHands[currentHandIndex];
+                if (newHandObj.hand[0].value === 'A') {
+                    messageEl.textContent = "Playing second Ace... one card only.";
+                    disableAllActions(); // Disable actions for Ace split
+                    dealToHand(newHandObj);
+                    // Force stand after one card on split Ace
+                    if (isGameInProgress) {
+                        setTimeout(moveToNextHand, 1000);
+                    }
+                } else {
+                    messageEl.textContent = `Playing Hand ${currentHandIndex + 1}...`;
+                    // Deal one card automatically to the new split hand
+                    dealToHand(newHandObj);
+                    updateActionButtons();
+                }
+
+            } else {
+                // All player hands are finished.
+                // NEW CHECK: Are all hands busted?
+                const allBusted = playerHands.every(hand => hand.isBust);
+                
+                if (allBusted && playerHands.length > 0) { // Check playerHands.length > 0 to be safe
+                    // If all hands busted, dealer doesn't play.
+                    isGameInProgress = false; // Mark game as over
+                    disableAllActions();
+                    hitButton.classList.add('hidden');
+                    standButton.classList.add('hidden');
+                    doubleDownButton.classList.add('hidden');
+                    splitButton.classList.add('hidden');
+                    
+                    // NEW: Conditional bust message
+                    if (playerHands.length > 1) {
+                        messageEl.textContent = "All hands busted!";
+                    } else {
+                        messageEl.textContent = "Bust!";
+                    }
+                    // Go straight to payout logic (dealer score doesn't matter)
+                    setTimeout(() => checkWinner(0), 1000);
+                } else {
+                    // At least one hand is still in play, so dealer plays.
+                    onStand();
+                }
+            }
+        }
+
+        /**
+         * Player chooses to "Stand"
+         */
+        function onStand() {
+            if (!isGameInProgress) return;
+            
+            // If we are in a split, move to the next hand
+            // BUG FIX: Check if current hand is *not* finished before moving on.
+            if (playerHands.length > 1 && currentHandIndex < (playerHands.length - 1) && !playerHands[currentHandIndex].isFinished) {
+                moveToNextHand();
+            } else if (isGameInProgress) { // Check isGameInProgress again in case moveToNextHand was called
+                // This was the last (or only) hand, proceed to dealer
+                isGameInProgress = false; // Mark game as over to prevent more actions
+                disableAllActions();
+                hitButton.classList.add('hidden');
+                standButton.classList.add('hidden');
+                doubleDownButton.classList.add('hidden');
+                splitButton.classList.add('hidden');
+                messageEl.textContent = "Dealer's turn...";
+                
+                // Un-highlight any active hand
+                playerHands.forEach(h => h.container.classList.remove('active-hand'));
+
+                // Reveal dealer's hidden card
+                dealerHandEl.innerHTML = '';
+                dealerHand.forEach(card => dealerHandEl.appendChild(renderCard(card, false)));
+                updateScores(true);
+
+                setTimeout(dealerTurn, 1000);
+            }
+        }
+        
+        /**
+         * Player chooses to "Double Down"
+         */
+        function onDoubleDown() {
+            if (!isGameInProgress) return;
+            
+            const handObj = playerHands[currentHandIndex];
+            if (playerMoney < handObj.bet || handObj.hand.length !== 2) return;
+
+            disableAllActions();
+
+            // Update money and bet
+            playerMoney -= handObj.bet;
+            handObj.bet *= 2;
+            bankEl.textContent = playerMoney;
+            
+            // Recalculate and show total bet
+            let totalBet = playerHands.reduce((acc, h) => acc + h.bet, 0);
+            inGameBetEl.textContent = totalBet; 
+            
+            messageEl.textContent = "Doubled down! One more card...";
+
+            setTimeout(() => {
+                dealToHand(handObj);
+                const playerScore = calculateScore(handObj.hand);
+                if (playerScore > 21) {
+                    handObj.isBust = true;
+                    // NEW: Conditional bust message
+                    if (playerHands.length > 1) {
+                        messageEl.textContent = `Hand ${currentHandIndex + 1} Busts!`;
+                    } else {
+                        messageEl.textContent = "Bust!";
+                    }
+                }
+                // Player is forced to stand
+                if (isGameInProgress) {
+                    setTimeout(moveToNextHand, 1000);
+                }
+            }, 1000);
+        }
+        
+        /**
+         * NEW: Player chooses to "Split"
+         */
+        function onSplit() {
+            if (!canSplit()) return;
+            
+            // Get the first hand
+            const handObj1 = playerHands[0];
+            const cardToMove = handObj1.hand.pop(); // Take the second card
+            
+            // Create the new hand
+            const handObj2 = createHandContainer();
+            
+            // Add new bet
+            playerMoney -= handObj2.bet; // handObj2.bet was set to currentBet
+            bankEl.textContent = playerMoney;
+            
+            // Move card to new hand
+            handObj2.hand.push(cardToMove);
+            
+            // Update UI
+            handObj1.element.innerHTML = '';
+            handObj1.element.appendChild(renderCard(handObj1.hand[0], false));
+            handObj2.element.appendChild(renderCard(handObj2.hand[0], false));
+
+            // Add fanning class to both containers
+            handObj1.container.classList.add('split-hand');
+            handObj2.container.classList.add('split-hand');
+
+            // NEW: Remove gap-3 class from the card containers
+            handObj1.element.classList.remove('gap-3');
+            handObj2.element.classList.remove('gap-3');
+            
+            // Add new hand to the array
+            playerHands.push(handObj2);
+            
+            // Recalculate and show total bet
+            let totalBet = playerHands.reduce((acc, h) => acc + h.bet, 0);
+            inGameBetEl.textContent = totalBet;
+            
+            // Deal one card to the first hand
+            messageEl.textContent = "Playing Hand 1...";
+            dealToHand(handObj1);
+            
+            // Check for split Aces rule
+            if (handObj1.hand[0].value === 'A') {
+                messageEl.textContent = "Playing first Ace... one card only.";
+                disableAllActions();
+                // Force stand on this hand
+                if (isGameInProgress) {
+                    setTimeout(moveToNextHand, 1000);
+                }
+            } else {
+                // Regular split, update buttons
+                highlightActiveHand();
+                updateActionButtons();
+            }
+        }
+        
+        /**
+         * Logic for Dealer checking for Blackjack
+         */
+        function dealerCheckForBlackjack(playerHasBlackjack) {
+            const hiddenCardEl = dealerHandEl.children[0];
+            hiddenCardEl.classList.add('card-peek');
+
+            setTimeout(() => {
+                hiddenCardEl.classList.remove('card-peek');
+                const dealerScore = calculateScore(dealerHand);
+
+                if (dealerScore === 21) {
+                    if (playerHasBlackjack) {
+                        messageEl.textContent = 'Push! You and the Dealer have Blackjack.';
+                        playerMoney += currentBet;
+                        showGameAnimation('push');
+                    } else {
+                        messageEl.textContent = 'Dealer has Blackjack. You Lose.';
+                        showGameAnimation('lose');
+                    }
+                    endGame();
+                } else {
+                    if (playerHasBlackjack) {
+                        const winnings = Math.floor(currentBet * 1.5);
+                        playerMoney += currentBet + winnings;
+                        messageEl.textContent = `Blackjack! You Win! (+$${currentBet + winnings})`;
+                        showGameAnimation('blackjack');
+                        endGame();
+                    } else {
+                        messageEl.textContent = "Your turn...";
+                        // Re-enable buttons
+                        updateActionButtons();
+                    }
+                }
+            }, 1000);
+        }
+
+        /**
+         * Logic for the dealer's turn
+         */
+        function dealerTurn() {
+            let dealerScore = calculateScore(dealerHand);
+
+            if (dealerScore < 17) {
+                const card = drawCard();
+                playSound('deal-sound'); // --- Play Dealer Card Deal Sound ---
+                dealerHand.push(card);
+                dealerHandEl.appendChild(renderCard(card, false));
+                updateScores(true);
+                setTimeout(dealerTurn, 1000);
+            } else {
+                checkWinner(dealerScore);
+            }
+        }
+
+        /**
+         * Compares scores and determines the winner
+         */
+        function checkWinner(dealerScore) {
+            let totalWinnings = 0;
+            let totalBetLost = 0;
+            let finalMessage = "";
+            
+            // --- NEW: Animation flags ---
+            let hasWin = false;
+            let hasLoss = false;
+            let hasPush = false;
+
+            playerHands.forEach((handObj, index) => {
+                const playerScore = calculateScore(handObj.hand);
+                const handMsgPrefix = playerHands.length > 1 ? `Hand ${index + 1}: ` : "";
+                
+                if (handObj.isBlackjack && dealerScore !== 21) {
+                    // This was handled by startGame, but as a fallback
+                    const winnings = Math.floor(handObj.bet * 1.5);
+                    playerMoney += handObj.bet + winnings;
+                    totalWinnings += handObj.bet + winnings;
+                    finalMessage += `${handMsgPrefix}Blackjack! (+$${handObj.bet + winnings})<br>`;
+                    hasWin = true; // --- SET FLAG ---
+                } else if (handObj.isBust) {
+                    totalBetLost += handObj.bet;
+                    finalMessage += `${handMsgPrefix}Bust! (-$${handObj.bet})<br>`;
+                    hasLoss = true; // --- SET FLAG ---
+                } else if (dealerScore > 21) {
+                    playerMoney += handObj.bet * 2;
+                    totalWinnings += handObj.bet * 2;
+                    finalMessage += `${handMsgPrefix}Dealer Busts! (+$${handObj.bet * 2})<br>`;
+                    hasWin = true; // --- SET FLAG ---
+                } else if (playerScore > dealerScore) {
+                    playerMoney += handObj.bet * 2;
+                    totalWinnings += handObj.bet * 2;
+                    finalMessage += `${handMsgPrefix}You Win! (+$${handObj.bet * 2})<br>`;
+                    hasWin = true; // --- SET FLAG ---
+                } else if (dealerScore > playerScore) {
+                    totalBetLost += handObj.bet;
+                    finalMessage += `${handMsgPrefix}Dealer Wins. (-$${handObj.bet})<br>`;
+                    hasLoss = true; // --- SET FLAG ---
+                } else { // Push
+                    playerMoney += handObj.bet;
+                    totalWinnings += handObj.bet;
+                    finalMessage += `${handMsgPrefix}Push. (Bet returned)<br>`;
+                    hasPush = true; // --- SET FLAG ---
+                }
+            });
+
+            messageEl.innerHTML = finalMessage;
+            
+            // --- NEW: Consolidated animation logic ---
+            if (hasWin && hasLoss) {
+                // A mix of wins and losses. Play the neutral "Push" animation.
+                showGameAnimation('push');
+            } else if (hasWin && !hasLoss) {
+                // Only wins (or wins and pushes)
+                showGameAnimation('win');
+            } else if (hasLoss && !hasWin) {
+                // Only losses (or losses and pushes)
+                showGameAnimation('lose');
+            } else if (hasPush && !hasWin && !hasLoss) {
+                // Only pushes
+                showGameAnimation('push');
+            }
+            // --- END NEW LOGIC ---
+
+            endGame();
+        }
+
+        /**
+         * NEW: Ends the current game and prepares for the next round or Game Over
+         */
+        function endGame() {
+            isGameInProgress = false; // Game is over
+            
+            // Show all wager/deal buttons
+            wagerArea.classList.remove('hidden');
+            dealButton.classList.remove('hidden');
+            
+            // Hide all action buttons
+            hitButton.classList.add('hidden');
+            standButton.classList.add('hidden');
+            doubleDownButton.classList.add('hidden');
+            splitButton.classList.add('hidden');
+            inGameBetArea.classList.add('hidden');
+            
+            // Update bank display
+            bankEl.textContent = playerMoney;
+            
+            // Check for Game Over
+            if (playerMoney < minBet) {
+                messageEl.textContent = "You've run out of money!";
+                // Show game over screen
+                gamePanel.classList.add('hidden');
+                gameOverOverlay.classList.remove('hidden'); // Fix: Show game over screen
+                playSound('lose-sound'); // --- Play Lose Sound on Game Over ---
+                disableAllActions();
+                wagerArea.classList.add('hidden');
+                dealButton.classList.add('hidden');
+            } else {
+                // Reset for next round
+                currentBet = 0;
+                betEl.textContent = currentBet;
+                updateWagerButtons();
+                dealButton.disabled = true; // Must place a new bet
+                messageEl.textContent = "Place your bet for the next round!";
+            }
+        }
+
+        /**
+         * Disables/Enables wager buttons based on available money
+         */
+        function updateWagerButtons() {
+            let canBet = false;
+            wagerButtons.forEach(button => {
+                const wagerAmount = parseInt(button.dataset.wager);
+                if (wagerAmount > (playerMoney - currentBet)) {
+                    button.disabled = true;
+                } else {
+                    button.disabled = false;
+                    canBet = true;
+                }
+            });
+            clearBetButton.disabled = (currentBet === 0);
+        }
+
+        /**
+         * NEW: Initializes or resets the game to its starting state
+         */
+        function initGame() {
+            playerMoney = 1000;
+            currentBet = 0;
+            isGameInProgress = false;
+            
+            bankEl.textContent = playerMoney;
+            betEl.textContent = currentBet;
+            
+            // Reset UI
+            messageEl.textContent = "Place your bet!";
+            gameOverOverlay.classList.add('hidden');
+            gamePanel.classList.remove('hidden');
+            
+            wagerArea.classList.remove('hidden');
+            dealButton.classList.remove('hidden');
+            
+            hitButton.classList.add('hidden');
+            standButton.classList.add('hidden');
+            doubleDownButton.classList.add('hidden');
+            splitButton.classList.add('hidden');
+            inGameBetArea.classList.add('hidden');
+            
+            playerHandEl.innerHTML = '';
+            dealerHandEl.innerHTML = '';
+            playerScoreEl.textContent = '0';
+            dealerScoreEl.textContent = '0';
+            
+            updateWagerButtons();
+            dealButton.disabled = true;
+
+            if (deck.length < 20) {
+                createDeck();
+                shuffleDeck();
+            }
+        }
+
+        // --- NEW: EVENT LISTENERS ---
+        playAgainButton.addEventListener('click', initGame);
+        dealButton.addEventListener('click', startGame);
+        hitButton.addEventListener('click', onHit);
+        standButton.addEventListener('click', onStand);
+        doubleDownButton.addEventListener('click', onDoubleDown);
+        splitButton.addEventListener('click', onSplit);
+
+        wagerButtons.forEach(button => {
+            button.addEventListener('click', (evt) => {
+                if (isGameInProgress) return;
+                const wagerAmount = parseInt(button.dataset.wager);
+                if (wagerAmount > (playerMoney - currentBet)) {
+                    button.disabled = true;
+                } else {
+                    currentBet += wagerAmount;
+                    betEl.textContent = currentBet;
+                    updateWagerButtons();
+                    dealButton.disabled = false;
+                }
+            });
+        });
+
+        clearBetButton.addEventListener('click', () => {
+            if (isGameInProgress) return;
+            currentBet = 0;
+            betEl.textContent = currentBet;
+            updateWagerButtons();
+            dealButton.disabled = true;
+        });
+
+        // --- Background Chip Generator ---
+        const chipData = [
+            { color: 'bg-red-700', value: '100' },
+            { color: 'bg-blue-700', value: '50' },
+            { color: 'bg-gray-900', value: '25' },
+            { color: 'bg-yellow-500', value: '5' },
+            { color: 'bg-purple-700', value: '500' }
+        ];
+
+        /**
+         * Creates a single falling chip and adds it to the DOM
+         */
+        function createFallingChip() {
+            const chip = document.createElement('div');
+            const data = chipData[Math.floor(Math.random() * chipData.length)];
+            
+            chip.className = `falling-chip ${data.color}`;
+            chip.innerHTML = `<span>${data.value}</span>`;
+            
+            // Random horizontal position
+            const x = Math.random() * window.innerWidth;
+            // Random duration (6 to 12 seconds)
+            const duration = Math.random() * 6 + 6;
+            
+            chip.style.left = `${x}px`;
+            chip.style.animationDuration = `${duration}s`;
+            
+            // When animation ends (chip is off-screen), remove it to prevent lag
+            chip.addEventListener('animationend', () => {
+                chip.remove();
+            });
+
+            chipBackground.appendChild(chip);
+        }
+
+        /**
+         * Starts generating chips at intervals
+         */
+        function startChipAnimation() {
+            // Create an initial burst of chips
+            for(let i = 0; i < 15; i++) {
+                // Stagger the first burst
+                setTimeout(createFallingChip, Math.random() * 5000);
+            }
+            
+            // Create a new chip every 500ms
+            setInterval(createFallingChip, 500);
+        }
+        
+        // --- Initial Setup ---
+        // Replaced old setup with initGame()
+        initGame();
+        
+        // Start the chip animation when the page loads
+        window.onload = startChipAnimation;
+
+        // --- NEW: Background Music Starter ---
+        /**
+         * Plays background music on the user's first interaction
+         */
+        function playMusic() {
+            if (!audioStarted) {
+                const music = document.getElementById('bg-music');
+                if (music) {
+                    music.play().catch(e => {
+                        console.warn("Audio autoplay was blocked by the browser.");
+                        // We tried, don't try again.
+                        audioStarted = true; 
+                    });
+                }
+                audioStarted = true;
+            }
+        }
+        // Add listeners for the first interaction to start the music
+        // { once: true } automatically removes the listener after it fires
+        document.body.addEventListener('click', playMusic, { once: true });
+        document.body.addEventListener('keydown', playMusic, { once: true });
+
+    </script>
+</body>
+</html>
